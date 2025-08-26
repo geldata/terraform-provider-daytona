@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  go-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.go-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: go-version
+        run: echo "go-version=$(cat .go-version)" >> $GITHUB_OUTPUT
+
+  terraform-provider-release:
+    name: 'Terraform Provider Release'
+    runs-on: ubuntu-latest
+    needs: [go-version]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.go-version.outputs.go-version }}
+      - name: Import GPG key
+        run: |
+          echo -n "$GPG_KEY" | gpg --import
+        env:
+          GPG_KEY: ${{ secrets.RELEASE_BOT_GPG_KEY }}
+      - name: goreleaser release
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: "357ECA063DEF4D51"
